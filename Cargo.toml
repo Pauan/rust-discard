@@ -1,0 +1,12 @@
+[package]
+name = "discard"
+version = "1.0.0"
+authors = ["Pauan <pcxunlimited@gmail.com>"]
+description = "Generic Discard trait which allows for intentionally leaking memory"
+repository = "https://github.com/Pauan/rust-discard"
+homepage = "https://github.com/Pauan/rust-discard"
+license = "MIT"
+keywords = ["discard", "cancel", "revoke", "drop", "leak"]
+categories = ["memory-management"]
+
+[dependencies]

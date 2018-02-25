@@ -1,2 +1,1 @@
-# rust-cancel
-Generic Cancel trait for Rust
+Generic Discard trait which allows for intentionally leaking memory
