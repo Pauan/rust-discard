@@ -1,6 +1,6 @@
 [package]
 name = "discard"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Pauan <pcxunlimited@gmail.com>"]
 description = "Discard trait which allows for intentionally leaking memory"
 repository = "https://github.com/Pauan/rust-discard"
