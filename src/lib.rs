@@ -133,19 +133,17 @@ pub trait Discard {
 ///
 /// See the [module documentation](index.html) for more details.
 #[must_use = "
+The DiscardOnDrop is unused, which causes it to be immediately discarded.
+You probably don't want that to happen.
 
-     The DiscardOnDrop is unused, which causes it to be immediately discarded.
-     You probably don't want that to happen.
+How to fix this:
 
-     How to fix this:
+  * Store the DiscardOnDrop in a variable or data structure.
 
-       * Store the DiscardOnDrop in a variable or data structure.
+  * Or use the DiscardOnDrop::leak function which will cause it to not be
+    discarded (this *will* leak memory!).
 
-       * Or use the DiscardOnDrop::leak function which will cause it to not be
-         discarded (this *will* leak memory!).
-
-     See the documentation for more details.
-"]
+See the DiscardOnDrop documentation for more details."]
 #[derive(Debug)]
 pub struct DiscardOnDrop<A: Discard>(ManuallyDrop<A>);
 
@@ -173,10 +171,13 @@ impl<A: Discard> DiscardOnDrop<A> {
     pub fn leak(this: Self) -> A {
         // We want to move the `A` out of `this`, but that's not allowed because `this` implements `Drop`
         // (and we must also avoid calling `drop()` on `this` or else `A` would get dropped twice).
+        //
         // We can do that move by using the unsafe function std::ptr::read(),
         // and then use `mem::forget()` on `this` so it never gets dropped. The `A` will get dropped by the caller.
+        //
+        // TODO verify that this is completely safe
         unsafe {
-            let value : A = ::std::ptr::read(this.0.deref());
+            let value: A = ::std::ptr::read(this.0.deref());
             ::std::mem::forget(this);
             value
         }
@@ -191,11 +192,14 @@ impl<A: Discard> Drop for DiscardOnDrop<A> {
         //
         // Similar to `leak()`, we want to move `A` out of `self` but again we can't,
         // this time because we only have a mutable reference, not a value.
+        //
         // The solution is the same though, use `std::ptr::read()` to do the move,
         // the `A` will get dropped by `.discard()` and since we wrapped it in `ManuallyDrop`,
         // it won't be dropped again at the end of this function.
+        //
+        // TODO verify that this is completely safe
         unsafe {
-            let value : A = ::std::ptr::read(self.0.deref());
+            let value: A = ::std::ptr::read(self.0.deref());
             value.discard();
         }
     }
@@ -254,6 +258,7 @@ mod tests {
 
     #[test]
     fn unused_discard_on_drop() {
+        DiscardOnDrop::new(Foo::new());
         DiscardOnDrop::new(Foo::new());
     }
 
