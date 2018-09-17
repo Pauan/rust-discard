@@ -97,7 +97,7 @@
 )]
 
 use std::ops::{Deref, DerefMut};
-
+use std::mem::ManuallyDrop;
 
 /// This trait is very similar to [`Drop`](https://doc.rust-lang.org/std/ops/trait.Drop.html):
 /// it allows for cleaning up memory and resources when they are no longer needed.
@@ -147,7 +147,7 @@ pub trait Discard {
      See the documentation for more details.
 "]
 #[derive(Debug)]
-pub struct DiscardOnDrop<A: Discard>(Option<A>);
+pub struct DiscardOnDrop<A: Discard>(ManuallyDrop<A>);
 
 impl<A: Discard> DiscardOnDrop<A> {
     /// Creates a new `DiscardOnDrop`.
@@ -157,7 +157,7 @@ impl<A: Discard> DiscardOnDrop<A> {
     /// See the [module documentation](index.html) for more details.
     #[inline]
     pub fn new(discarder: A) -> Self {
-        DiscardOnDrop(Some(discarder))
+        DiscardOnDrop(ManuallyDrop::new(discarder))
     }
 
     /// Returns the wrapped `discarder`.
@@ -170,10 +170,15 @@ impl<A: Discard> DiscardOnDrop<A> {
     /// This is implemented as a function (*not* a method) so that way it doesn't interfere with any of the
     /// methods on `discarder`.
     #[inline]
-    pub fn leak(mut this: Self) -> A {
-        match this.0.take() {
-            Some(value) => value,
-            None => unreachable!(),
+    pub fn leak(this: Self) -> A {
+        // We want to move the `A` out of `this`, but that's not allowed because `this` implements `Drop`
+        // (and we must also avoid calling `drop()` on `this` or else `A` would get dropped twice).
+        // We can do that move by using the unsafe function std::ptr::read(),
+        // and then use `mem::forget()` on `this` so it never gets dropped. The `A` will get dropped by the caller.
+        unsafe {
+            let value : A = ::std::ptr::read(this.0.deref());
+            ::std::mem::forget(this);
+            value
         }
     }
 }
@@ -181,10 +186,17 @@ impl<A: Discard> DiscardOnDrop<A> {
 impl<A: Discard> Drop for DiscardOnDrop<A> {
     #[inline]
     fn drop(&mut self) {
-        match self.0.take() {
-            Some(discarder) => discarder.discard(),
-            // The discarder was leaked
-            None => {},
+        // This only gets called if there is still a valid `A` inside the `ManuallyDrop`,
+        // since in `leak()` we prevent `drop()` from being called.
+        //
+        // Similar to `leak()`, we want to move `A` out of `self` but again we can't,
+        // this time because we only have a mutable reference, not a value.
+        // The solution is the same though, use `std::ptr::read()` to do the move,
+        // the `A` will get dropped by `.discard()` and since we wrapped it in `ManuallyDrop`,
+        // it won't be dropped again at the end of this function.
+        unsafe {
+            let value : A = ::std::ptr::read(self.0.deref());
+            value.discard();
         }
     }
 }
@@ -194,20 +206,14 @@ impl<A: Discard> Deref for DiscardOnDrop<A> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        match self.0 {
-            Some(ref discarder) => discarder,
-            None => unreachable!(),
-        }
+        self.0.deref()
     }
 }
 
 impl<A: Discard> DerefMut for DiscardOnDrop<A> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        match self.0 {
-            Some(ref mut discarder) => discarder,
-            None => unreachable!(),
-        }
+        self.0.deref_mut()
     }
 }
 
